@@ -13,6 +13,7 @@
     [boofcv.factory.feature.detect.edge FactoryEdgeDetectors]
     [boofcv.alg.feature.detect.edge CannyEdge]
     [boofcv.alg.misc GPixelMath]
+    [java.awt Rectangle]
     [java.awt.geom AffineTransform]
     [java.awt.image BufferedImage AffineTransformOp]))
 
@@ -251,14 +252,24 @@
            (c/set-pixel! out-ch x y)))
     (c/make-image out-ch :gray)))
 
+
+;; Added calculation of output buff-img according to
+;; https://forums.oracle.com/thread/1272046
 (defn scale
   "Returns a new image as a scaled version of the input image."
   ([img factor] (scale img factor factor))
   ([img xfactor yfactor]
    (let [buff (h/to-buffered-image img)
-         out-buff (h/create-buffered-image (* (c/ncols img) xfactor)
-                                           (* (c/nrows img) yfactor))]
-     (-> (AffineTransformOp. (doto (AffineTransform.) (.scale xfactor yfactor))
+           buff-bounds (-> buff .getRaster .getBounds)
+           affine-transform (doto (AffineTransform.)
+                              (.scale xfactor yfactor))
+           ;;calculate resized bounds
+           out-bounds (-> affine-transform
+                      (.createTransformedShape buff-bounds)
+                      .getBounds)
+           out-buff (h/create-buffered-image (.width out-bounds)
+                                             (.height out-bounds))]
+       (-> (AffineTransformOp. affine-transform
                              AffineTransformOp/TYPE_BICUBIC)
          (.filter buff out-buff)
          (h/to-img)))))
